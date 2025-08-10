@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app
 
 # Run your Python script when container starts
-ENTRYPOINT ["python", "tools/pr_risk_profiler.py"]
+ENTRYPOINT ["python", "tools/pr-risk-profiler.py"]
