@@ -1,0 +1,23 @@
+name: 'PR Test Risk Profiler'
+description: 'Analyze pull requests and suggest tests based on changed files and risk score.'
+author: 'Muthu'
+inputs:
+  github_token:
+    description: 'GitHub token to post comments'
+    required: true
+  critical_modules_file:
+    description: 'Path to critical modules config'
+    required: false
+    default: '.critical_modules.yml'
+  testmap_file:
+    description: 'Path to test mapping config'
+    required: false
+    default: '.testmap.yml'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
