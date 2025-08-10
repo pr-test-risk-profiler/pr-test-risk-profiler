@@ -1,6 +1,6 @@
 name: 'PR Test Risk Profiler'
 description: 'Analyze pull requests and suggest tests based on changed files and risk score.'
-author: 'Muthu'
+author: 'mov2day'
 inputs:
   github_token:
     description: 'GitHub token to post comments'
