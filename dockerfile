@@ -2,8 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /github/workspace
 
-# Install git so subprocess calls work
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install git and configure it
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
+    git config --global --add safe.directory '*' && \
+    git config --global core.longpaths true
 
 # Copy our tool and requirements to a separate directory
 COPY requirements.txt /app/
