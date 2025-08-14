@@ -232,15 +232,25 @@ if __name__ == "__main__":
             if f.startswith(pattern):
                 suggested_tests.update(tests)
 
+    # Build the changed files section
+    changed_files_text = ""
+    if changed_files:
+        for f in changed_files:
+            changed_files_text += f"- {f}\n"
+    else:
+        changed_files_text = "No files changed\n"
+
+    # Build the suggested tests section
+    suggested_tests_text = ", ".join(suggested_tests) if suggested_tests else "No mapping found"
+
     report = f"""
 🛡 **PR Test Risk Profiler**
 Risk Score: **{risk_score}/100** → **{risk_level} Risk**
 
 **Changed Files:**
-{"".join(f'- {f}\n' for f in changed_files) if changed_files else "No files changed"}
-
+{changed_files_text}
 **Suggested Tests:** 
-{", ".join(suggested_tests) if suggested_tests else "No mapping found"}
+{suggested_tests_text}
 
 ---
 
