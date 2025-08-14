@@ -1,14 +1,10 @@
 FROM python:3.11-slim
 
+# Set working directory to where GitHub Actions mounts the repo
 WORKDIR /github/workspace
 
-# Copy our tool and requirements to a separate directory
-COPY requirements.txt /app/
-COPY tools/pr-risk-profiler.py /app/tools/
+# Install dependencies from the workspace
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install dependencies
-RUN pip install --no-cache-dir -r /app/requirements.txt
-
-# Run the Python script when container starts
-# Note: We use the full path to our script but work from the mounted workspace
-ENTRYPOINT ["python", "/app/tools/pr-risk-profiler.py"]
+# Run the profiler script from the workspace
+ENTRYPOINT ["python", "tools/pr-risk-profiler.py"]
