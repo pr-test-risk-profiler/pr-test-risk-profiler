@@ -29,15 +29,53 @@ def load_yaml(file_path):
     return {}
 
 def get_changed_files():
-    result = subprocess.run(
-        ["git", "diff", "--name-status", "origin/main...HEAD"],
-        capture_output=True, text=True
-    )
+    # Try to get PR base and head SHAs from environment
+    event_path = os.environ.get('GITHUB_EVENT_PATH')
+    if event_path and os.path.exists(event_path):
+        try:
+            with open(event_path, 'r') as f:
+                import json
+                event = json.load(f)
+                base_sha = event['pull_request']['base']['sha']
+                head_sha = event['pull_request']['head']['sha']
+                
+                # First ensure we have the base commit
+                subprocess.run(['git', 'fetch', 'origin', base_sha], capture_output=True)
+                
+                # Get the diff between base and head
+                result = subprocess.run(
+                    ['git', 'diff', '--name-status', f'{base_sha}...{head_sha}'],
+                    capture_output=True, text=True
+                )
+        except Exception as e:
+            print(f"Warning: Failed to get PR diff using SHAs: {e}")
+            # Fallback to comparing with the base branch
+            result = subprocess.run(
+                ['git', 'diff', '--name-status', 'HEAD^', 'HEAD'],
+                capture_output=True, text=True
+            )
+    else:
+        # Fallback to comparing with the previous commit
+        result = subprocess.run(
+            ['git', 'diff', '--name-status', 'HEAD^', 'HEAD'],
+            capture_output=True, text=True
+        )
+    
     files = []
     for line in result.stdout.strip().split("\n"):
         if line:
-            status, path = line.split("\t", 1)
-            files.append(path)
+            try:
+                parts = line.split("\t", 1)
+                if len(parts) == 2:
+                    status, path = parts
+                    files.append(path)
+            except Exception as e:
+                print(f"Warning: Failed to parse diff line '{line}': {e}")
+                continue
+    
+    # Debug output
+    print(f"Found {len(files)} changed files: {files}")
+    return files
     return files
 
 def get_lines_changed():
@@ -199,7 +237,10 @@ if __name__ == "__main__":
 Risk Score: **{risk_score}/100** → **{risk_level} Risk**
 
 **Changed Files:**
-**Suggested Tests:** {", ".join(suggested_tests) if suggested_tests else "No mapping found"}
+{"".join(f'- {f}\n' for f in changed_files) if changed_files else "No files changed"}
+
+**Suggested Tests:** 
+{", ".join(suggested_tests) if suggested_tests else "No mapping found"}
 
 ---
 

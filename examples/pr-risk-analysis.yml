@@ -1,0 +1,32 @@
+name: PR Risk Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Add required permissions
+permissions:
+  contents: read
+  pull-requests: write  # Needed to post comments
+
+jobs:
+  analyze:
+    name: Analyze PR Risk
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Checkout code with full git history
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # This ensures full git history is available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the PR branch
+
+      # Run the PR Risk Profiler
+      - name: Run PR Risk Analysis
+        uses: pr-test-risk-profiler/pr-test-risk-profiler@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: Configure paths to your config files if they're in different locations
+          # critical_modules_file: '.config/critical_modules.yml'
+          # testmap_file: '.config/testmap.yml'
