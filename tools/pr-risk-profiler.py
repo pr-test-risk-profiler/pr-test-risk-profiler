@@ -48,51 +48,62 @@ def get_changed_files():
                 event = json.load(f)
                 print(f"GitHub Event: {json.dumps(event, indent=2)}")
                 
-                # Get the PR number from the event
-                pr_number = event['pull_request']['number']
-                print(f"PR Number: {pr_number}")
-                
-                # Configure the repository
-                subprocess.run(['git', 'config', '--global', '--add', 'safe.directory', '/github/workspace'], capture_output=True)
-                
-                # Fetch PR refs
-                fetch_result = subprocess.run(
-                    ['git', 'fetch', 'origin', f'pull/{pr_number}/head:pr-head'],
-                    capture_output=True,
-                    text=True
-                )
-                print(f"Fetch result: {fetch_result.stdout}\n{fetch_result.stderr}")
-                
-                # Get changed files using GitHub API
                 if 'pull_request' in event:
-                    files = []
-                    for file in event['pull_request']['files']:
-                        files.append(file['filename'])
+                    # Get the repository and PR information
+                    repo_name = event['repository']['full_name']
+                    pr_number = event['pull_request']['number']
+                    token = os.environ.get('GITHUB_TOKEN')
+                    
+                    print(f"Repository: {repo_name}")
+                    print(f"PR Number: {pr_number}")
+                    
+                    # Use GitHub API to get changed files
+                    gh = Github(token)
+                    repo = gh.get_repo(repo_name)
+                    pr = repo.get_pull(pr_number)
+                    
+                    # Get files from PR
+                    files = [f.filename for f in pr.get_files()]
                     if files:
                         print(f"Found {len(files)} changed files from GitHub API")
                         return files
                 
-                # If GitHub API didn't work, try git commands
-                print("\nTrying git commands...")
-                # Try to get changes between PR head and base
-                result = subprocess.run(
-                    ['git', 'diff', '--name-only', 'origin/main...pr-head'],
-                    capture_output=True,
-                    text=True
-                )
-                
+                    # Configure the repository and try git commands
+                    print("\nTrying git commands...")
+                    # Configure git
+                    subprocess.run(['git', 'config', '--global', '--add', 'safe.directory', '/github/workspace'], capture_output=True)
+                    
+                    # Get base and head SHAs
+                    base_sha = event['pull_request']['base']['sha']
+                    head_sha = event['pull_request']['head']['sha']
+                    
+                    print(f"Base SHA: {base_sha}")
+                    print(f"Head SHA: {head_sha}")
+                    
+                    # Try to get changes using git diff
+                    result = subprocess.run(
+                        ['git', 'diff', '--name-only', f'{base_sha}..{head_sha}'],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if result.stdout.strip():
+                        files = [f for f in result.stdout.strip().split('\n') if f]
+                        print(f"Found {len(files)} changed files using git diff")
+                        return files
+                    
         except Exception as e:
             print(f"Warning: Failed to get PR diff: {e}")
-            # Fallback to git status
+            # Try one last time with git status
             result = subprocess.run(
-                ['git', 'status', '--porcelain'],
+                ['git', 'diff', '--name-only', 'HEAD^', 'HEAD'],
                 capture_output=True,
                 text=True
             )
     else:
-        print("No event path found, using git status")
+        print("No event path found, using git diff")
         result = subprocess.run(
-            ['git', 'status', '--porcelain'],
+            ['git', 'diff', '--name-only', 'HEAD^', 'HEAD'],
             capture_output=True,
             text=True
         )
@@ -100,24 +111,8 @@ def get_changed_files():
     print(f"\nCommand output:\n{result.stdout}")
     print(f"Command stderr:\n{result.stderr}")
     
-    files = []
-    for line in result.stdout.strip().split("\n"):
-        if line:
-            try:
-                # Handle git status --porcelain format
-                if result.args[1] == '--porcelain':
-                    if line[3:]:  # Skip the status codes
-                        files.append(line[3:].strip())
-                else:
-                    # Handle git diff format
-                    parts = line.split(None, 1)  # Split on whitespace
-                    if len(parts) > 1:
-                        files.append(parts[-1].strip())
-                    else:
-                        files.append(parts[0].strip())  # For --name-only format
-            except Exception as e:
-                print(f"Warning: Failed to parse line '{line}': {e}")
-                continue
+    # Parse the output for file names
+    files = [f for f in result.stdout.strip().split('\n') if f]
     
     # Debug output
     print(f"\nFound {len(files)} changed files: {files}")
