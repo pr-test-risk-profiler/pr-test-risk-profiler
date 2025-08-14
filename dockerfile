@@ -1,13 +1,14 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /github/workspace
 
-# Install dependencies first for faster builds
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy our tool and requirements to a separate directory
+COPY requirements.txt /app/
+COPY tools/pr-risk-profiler.py /app/tools/
 
-# Copy everything into container
-COPY . /app
+# Install dependencies
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Run your Python script when container starts
-ENTRYPOINT ["python", "tools/pr-risk-profiler.py"]
+# Run the Python script when container starts
+# Note: We use the full path to our script but work from the mounted workspace
+ENTRYPOINT ["python", "/app/tools/pr-risk-profiler.py"]
