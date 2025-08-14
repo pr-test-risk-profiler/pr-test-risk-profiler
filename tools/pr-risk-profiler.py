@@ -29,52 +29,93 @@ def load_yaml(file_path):
     return {}
 
 def get_changed_files():
-    # Try to get PR base and head SHAs from environment
+    # Print debug info about the environment
+    print("Debug: Getting changed files")
+    print(f"PWD: {os.getcwd()}")
+    print(f"List directory: {os.listdir('.')}")
+    
+    # Try to get PR base and head refs from environment
     event_path = os.environ.get('GITHUB_EVENT_PATH')
+    print(f"GITHUB_EVENT_PATH: {event_path}")
+    
     if event_path and os.path.exists(event_path):
         try:
             with open(event_path, 'r') as f:
                 import json
                 event = json.load(f)
+                print(f"GitHub Event: {json.dumps(event, indent=2)}")
+                
                 base_sha = event['pull_request']['base']['sha']
                 head_sha = event['pull_request']['head']['sha']
+                print(f"Base SHA: {base_sha}")
+                print(f"Head SHA: {head_sha}")
                 
-                # First ensure we have the base commit
+                # Fetch both base and head refs
+                print("Fetching refs...")
+                subprocess.run(['git', 'fetch', '--unshallow'], capture_output=True)
                 subprocess.run(['git', 'fetch', 'origin', base_sha], capture_output=True)
+                subprocess.run(['git', 'fetch', 'origin', head_sha], capture_output=True)
                 
-                # Get the diff between base and head
-                result = subprocess.run(
+                # Try multiple git commands to get changed files
+                commands = [
                     ['git', 'diff', '--name-status', f'{base_sha}...{head_sha}'],
-                    capture_output=True, text=True
-                )
+                    ['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'],
+                    ['git', 'diff', '--name-only', 'HEAD^', 'HEAD']
+                ]
+                
+                for cmd in commands:
+                    print(f"\nTrying command: {' '.join(cmd)}")
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    if result.stdout.strip():
+                        print(f"Command succeeded with output: {result.stdout}")
+                        break
+                    print(f"Command output empty, stderr: {result.stderr}")
+                
+                if not result.stdout.strip():
+                    # If all commands failed, try git status
+                    print("\nTrying git status...")
+                    result = subprocess.run(
+                        ['git', 'status', '--porcelain'],
+                        capture_output=True, text=True
+                    )
+                
         except Exception as e:
             print(f"Warning: Failed to get PR diff using SHAs: {e}")
-            # Fallback to comparing with the base branch
             result = subprocess.run(
-                ['git', 'diff', '--name-status', 'HEAD^', 'HEAD'],
+                ['git', 'status', '--porcelain'],
                 capture_output=True, text=True
             )
     else:
-        # Fallback to comparing with the previous commit
+        print("No event path found, using git status")
         result = subprocess.run(
-            ['git', 'diff', '--name-status', 'HEAD^', 'HEAD'],
+            ['git', 'status', '--porcelain'],
             capture_output=True, text=True
         )
+    
+    print(f"\nCommand output:\n{result.stdout}")
+    print(f"Command stderr:\n{result.stderr}")
     
     files = []
     for line in result.stdout.strip().split("\n"):
         if line:
             try:
-                parts = line.split("\t", 1)
-                if len(parts) == 2:
-                    status, path = parts
-                    files.append(path)
+                # Handle git status --porcelain format
+                if result.args[1] == '--porcelain':
+                    if line[3:]:  # Skip the status codes
+                        files.append(line[3:].strip())
+                else:
+                    # Handle git diff format
+                    parts = line.split(None, 1)  # Split on whitespace
+                    if len(parts) > 1:
+                        files.append(parts[-1].strip())
+                    else:
+                        files.append(parts[0].strip())  # For --name-only format
             except Exception as e:
-                print(f"Warning: Failed to parse diff line '{line}': {e}")
+                print(f"Warning: Failed to parse line '{line}': {e}")
                 continue
     
     # Debug output
-    print(f"Found {len(files)} changed files: {files}")
+    print(f"\nFound {len(files)} changed files: {files}")
     return files
     return files
 

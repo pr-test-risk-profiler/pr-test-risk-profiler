@@ -21,6 +21,12 @@ jobs:
         with:
           fetch-depth: 0  # This ensures full git history is available
           ref: ${{ github.event.pull_request.head.sha }}  # Checkout the PR branch
+      
+      # Fetch all history for all tags and branches
+      - name: Fetch Git History
+        run: |
+          git fetch --prune --unshallow
+          git fetch origin +refs/heads/*:refs/remotes/origin/*
 
       # Run the PR Risk Profiler
       - name: Run PR Risk Analysis
