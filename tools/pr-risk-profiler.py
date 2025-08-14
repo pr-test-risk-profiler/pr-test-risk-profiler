@@ -112,27 +112,60 @@ def get_github_context():
     # These are automatically set by GitHub Actions
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
+        # Fallback to environment variables if event path is not available
+        repo = os.environ.get("GITHUB_REPOSITORY")
+        pr_num = os.environ.get("GITHUB_REF", "").split('/')[-2]
+        if repo and pr_num and pr_num.isdigit():
+            return token, repo, int(pr_num)
         raise ValueError("This action must be run in a GitHub Actions environment")
     
     # Read the event payload
-    with open(event_path, 'r') as f:
-        import json
-        event = json.load(f)
+    try:
+        with open(event_path, 'r') as f:
+            import json
+            event = json.load(f)
+    except Exception as e:
+        raise ValueError(f"Failed to read GitHub event file: {e}")
     
     # Extract PR info from the event
     try:
-        pr_number = event['pull_request']['number']
-        repo_name = event['repository']['full_name']
+        if 'pull_request' in event:
+            pr_number = event['pull_request']['number']
+            repo_name = event['repository']['full_name']
+        else:
+            # Fallback to environment variables
+            repo_name = os.environ.get("GITHUB_REPOSITORY")
+            ref = os.environ.get("GITHUB_REF", "")
+            pr_number = ref.split('/')[-2] if '/pull/' in ref else None
+            
+            if not (repo_name and pr_number and pr_number.isdigit()):
+                raise ValueError("Could not determine PR number from environment")
+            pr_number = int(pr_number)
+            
         return token, repo_name, pr_number
-    except KeyError as e:
-        raise ValueError(f"Missing required information in GitHub event: {e}")
+    except Exception as e:
+        raise ValueError(f"Failed to get PR context: {e}")
 
 def post_github_comment(body):
-    token, repo_name, pr_number = get_github_context()
-    gh = Github(token)
-    repo = gh.get_repo(repo_name)
-    pr = repo.get_pull(pr_number)
-    pr.create_issue_comment(body)
+    try:
+        token, repo_name, pr_number = get_github_context()
+        gh = Github(token)
+        repo = gh.get_repo(repo_name)
+        pr = repo.get_pull(pr_number)
+        
+        # First try to post the comment
+        try:
+            pr.create_issue_comment(body)
+        except Exception as e:
+            # If comment creation fails, print the report to stdout
+            print("Failed to post comment to PR. Error:", str(e))
+            print("\nReport content:")
+            print(body)
+    except Exception as e:
+        # If we can't even get the context, just print everything
+        print("Failed to interact with GitHub API. Error:", str(e))
+        print("\nReport content:")
+        print(body)
 
 # --------------------------
 # Main Entry
