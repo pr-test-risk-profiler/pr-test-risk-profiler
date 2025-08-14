@@ -103,10 +103,35 @@ def calculate_risk(changed_files, added, deleted, critical_modules):
 # --------------------------
 # GitHub Comment Posting
 # --------------------------
+def get_github_context():
+    # Get environment variables or fail with helpful message
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise ValueError("GITHUB_TOKEN environment variable is required")
+    
+    # These are automatically set by GitHub Actions
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        raise ValueError("This action must be run in a GitHub Actions environment")
+    
+    # Read the event payload
+    with open(event_path, 'r') as f:
+        import json
+        event = json.load(f)
+    
+    # Extract PR info from the event
+    try:
+        pr_number = event['pull_request']['number']
+        repo_name = event['repository']['full_name']
+        return token, repo_name, pr_number
+    except KeyError as e:
+        raise ValueError(f"Missing required information in GitHub event: {e}")
+
 def post_github_comment(body):
-    gh = Github(os.environ["GITHUB_TOKEN"])
-    repo = gh.get_repo(os.environ["GITHUB_REPO"])
-    pr = repo.get_pull(int(os.environ["GITHUB_PR_NUMBER"]))
+    token, repo_name, pr_number = get_github_context()
+    gh = Github(token)
+    repo = gh.get_repo(repo_name)
+    pr = repo.get_pull(pr_number)
     pr.create_issue_comment(body)
 
 # --------------------------

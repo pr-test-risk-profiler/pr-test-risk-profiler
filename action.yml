@@ -17,6 +17,8 @@ inputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  env:
+    GITHUB_TOKEN: ${{ inputs.github_token }}
 
 branding:
   icon: 'shield'
