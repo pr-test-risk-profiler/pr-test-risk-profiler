@@ -2,6 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /github/workspace
 
+# Install git so subprocess calls work
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
 # Copy our tool and requirements to a separate directory
 COPY requirements.txt /app/
 COPY tools/pr-risk-profiler.py /app/tools/
